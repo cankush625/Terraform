@@ -12,21 +12,30 @@ resource "tls_private_key" "ec2_private_key" {
   rsa_bits  = 4096
 }
 
-resource "aws_key_pair" "deploy" {
+module "key_pair" {
+  source = "terraform-aws-modules/key-pair/aws"
+
   key_name   = "Terraform_test"
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCiZ55KAl3LlJBet3VNzdPaPLTJSM7ikCsUeKRGmqkk1K0MXlLgE2cfaVoBuFmm4c0U62M4YEU/qm3JJdVsttGOOpx4FRb++U8xaJgPvKpxUGk9/ZaFGPQiIr1t1Cfj1uZiQSXADMdFTF4175fwYgfJMcRkJmi7XLJexTZQrSH8phts1jhuF2YlsvzjYv5OK39iwn9guyU+tC1ThR1iVZxhsd08kp81ThypFisaVYLCC2qf5NFR2tj/yBfehmMpCPSKIQTpJzYlRPZufju3yY3AlWJuuJkX8blRGUpchuERuorcDPVC5EFVA3V4LAlNDGXaUx1j6Wan7KhyuulhsmPtXgtfH+pboWKt4yz4ydoQ7A7Dub1g3vcvLxkYXp+Kmgco6Ni3mXoYhWxbCBXSFXflSfJx9aMugHrGKALZZd210xC/7AT+UutDRX6ya/y2vgZKvrAVCefetjgUth0ZpA5KyOMpcJMtJzEFRp8siL2VC2FDwkX+bdys5wKQ6igO6fxPTAmyR2B/v0a+Zq7LByWNteh22KLf/EUjcWwxfjgA+QHujHf850sDOI31Z2bz1RubuTtLaA4tpNgnpVhcRxAfCRrXVTcNIqUGxZzFQE7B2SQr49ZG0o5xP8YQc2iytcxhP0YCFFd4flO73qyiltSS/lNQxLvsk3XuWIWHVmH1/w=="
+  public_key = tls_private_key.ec2_private_key.public_key_openssh
 }
 
 // Creating aws security resource
 resource "aws_security_group" "allow_tcp" {
   name        = "allow_tcp"
   description = "Allow TCP inbound traffic"
-  //vpc_id      = "vpc-4ae4f922"
+  vpc_id      = "vpc-4ae4f922"
 
   ingress {
-    description = "TLS from VPC"
+    description = "TCP from VPC"
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+   ingress {
+    description = "SSH from VPC"
+    from_port   = 22
+    to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -53,6 +62,7 @@ resource "aws_instance" "myWebOS" {
     tags = {
         Name = "TeraTaskOne"
     }
+    user_data = "${file("vol.sh")}"
 }
 
 // Creating EBS volume
@@ -67,7 +77,10 @@ resource "aws_ebs_volume" "myWebVol" {
 
 // Attaching above volume to the EC2 instance
 resource "aws_volume_attachment" "myWebVolAttach" {
- device_name = "/dev/sdc"
- volume_id = "${aws_ebs_volume.myWebVol.id}"
- instance_id = "${aws_instance.myWebOS.id}"
+  device_name = "/dev/sdc"
+  volume_id = "${aws_ebs_volume.myWebVol.id}"
+  instance_id = "${aws_instance.myWebOS.id}"
+  skip_destroy = true
 }
+
+//
