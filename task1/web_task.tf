@@ -54,3 +54,20 @@ resource "aws_instance" "myWebOS" {
         Name = "TeraTaskOne"
     }
 }
+
+// Creating EBS volume
+resource "aws_ebs_volume" "myWebVol" {
+  availability_zone = "ap-south-1a"
+  size              = 1
+
+  tags = {
+    Name = "TeraTaskVol"
+  }
+}
+
+// Attaching above volume to the EC2 instance
+resource "aws_volume_attachment" "myWebVolAttach" {
+ device_name = "/dev/sdc"
+ volume_id = "${aws_ebs_volume.myWebVol.id}"
+ instance_id = "${aws_instance.myWebOS.id}"
+}
