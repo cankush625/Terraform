@@ -248,7 +248,7 @@ resource "aws_s3_bucket_policy" "s3BucketPolicy" {
   policy = "${data.aws_iam_policy_document.s3_policy.json}"
 }
 
-//
+// Uploading files to S3 bucket
 resource "aws_s3_bucket_object" "bucketObject" {
   for_each = fileset("/home/cankush/Downloads/assets", "**/*.jpg")
 
