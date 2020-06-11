@@ -249,21 +249,6 @@ resource "aws_s3_bucket_policy" "s3BucketPolicy" {
 }
 
 //
-# module "gitModule" {
-#   source = "github.com/cankush625/Web/assets"
-# }
-
-# output "gitModuleSource" {
-#   value = module.gitModule.source
-# }
-
-//
-# resource "aws_s3_bucket_object" "object" {
-#   bucket = "${aws_s3_bucket.tera_bucket.bucket}"
-#   key    = "/assets/"
-#   source = "/home/cankush/Downloads/assets"
-# }
-
 resource "aws_s3_bucket_object" "bucketObject" {
   for_each = fileset("/home/cankush/Downloads/assets", "**/*.jpg")
 
