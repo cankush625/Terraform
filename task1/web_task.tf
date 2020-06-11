@@ -41,6 +41,13 @@ resource "aws_security_group" "allow_tcp" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+    description = "HTTPS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   egress {
     from_port   = 0
@@ -101,6 +108,7 @@ resource "aws_s3_bucket_public_access_block" "s3BlockPublicAccess" {
 
   block_public_acls   = true
   block_public_policy = true
+  restrict_public_buckets = true
 }
 
 //
@@ -208,6 +216,8 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   viewer_certificate {
     cloudfront_default_certificate = true
   }
+
+  retain_on_delete = true
 }
 
 // AWS Bucket Policy for CloudFront
@@ -236,4 +246,29 @@ data "aws_iam_policy_document" "s3_policy" {
 resource "aws_s3_bucket_policy" "s3BucketPolicy" {
   bucket = "${aws_s3_bucket.tera_bucket.id}"
   policy = "${data.aws_iam_policy_document.s3_policy.json}"
+}
+
+//
+# module "gitModule" {
+#   source = "github.com/cankush625/Web/assets"
+# }
+
+# output "gitModuleSource" {
+#   value = module.gitModule.source
+# }
+
+//
+# resource "aws_s3_bucket_object" "object" {
+#   bucket = "${aws_s3_bucket.tera_bucket.bucket}"
+#   key    = "/assets/"
+#   source = "/home/cankush/Downloads/assets"
+# }
+
+resource "aws_s3_bucket_object" "bucketObject" {
+  for_each = fileset("/home/cankush/Downloads/assets", "**/*.jpg")
+
+  bucket = "${aws_s3_bucket.tera_bucket.bucket}"
+  key    = each.value
+  source = "/home/cankush/Downloads/assets/${each.value}"
+  content_type = "image/jpg"
 }
