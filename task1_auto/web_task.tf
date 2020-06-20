@@ -18,6 +18,7 @@ resource "tls_private_key" "ec2_private_key" {
     }
 }
 
+// Making the access of .pem key as a private
 resource "null_resource" "key-perm" {
     depends_on = [
         tls_private_key.ec2_private_key,

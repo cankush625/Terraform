@@ -1,0 +1,46 @@
+- hosts: all
+  become: true
+    
+  vars_files:
+    - tf_master.yml
+
+  vars:
+    terra_variables: "{{ lookup('file', 'ansible-vars.json') }}"
+    MOUNT_LOCATION: "/var/www/html"
+    MOUNT_TARGET: "fs-934fc042.efs.ap-south-1.amazonaws.com"
+
+  tasks:
+    - name: Install httpd
+      command: yum install httpd -y
+      become: yes
+      become_method: sudo
+      become_user: root
+
+    - name: Start httpd
+      command: systemctl start httpd
+      become: yes
+      become_method: sudo
+      become_user: root
+
+    - name: Enable httpd
+      command: systemctl enable httpd
+      become: yes
+      become_method: sudo
+      become_user: root
+
+    - name: Install git
+      command: yum install git -y
+      become: yes
+      become_method: sudo
+      become_user: root
+
+    - name: Mounting EFS at /var/www/html
+      command: mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 $MOUNT_TARGET:/ $MOUNT_LOCATION
+      become: yes
+      become_method: sudo
+      become_user: root
+
+    - name: Copy the code from github to the /var/www/html
+      shell: |
+        cd /var/www/html
+        git clone https://github.com/cankush625/Web.git

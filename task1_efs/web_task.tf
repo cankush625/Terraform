@@ -6,25 +6,40 @@ provider "aws" {
 
 // Creating the EC2 private key
 variable "key_name" {
-  default = "Terraform_test"
+  default = "Terraform_test_nfs"
 }
 
 resource "tls_private_key" "ec2_private_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
+
+  provisioner "local-exec" {
+        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/${var.key_name}.pem"            
+    }
+}
+
+// Making the access of .pem key as a private
+resource "null_resource" "key-perm" {
+    depends_on = [
+        tls_private_key.ec2_private_key,
+    ]
+
+    provisioner "local-exec" {
+        command = "chmod 400 ~/Desktop/${var.key_name}.pem"
+    }
 }
 
 module "key_pair" {
   source = "terraform-aws-modules/key-pair/aws"
 
-  key_name   = "Terraform_test"
+  key_name   = var.key_name
   public_key = tls_private_key.ec2_private_key.public_key_openssh
 }
 
 // Creating aws security resource
-resource "aws_security_group" "allow_tcp" {
-  name        = "allow_tcp"
-  description = "Allow TCP inbound traffic"
+resource "aws_security_group" "allow_tcp_nfs" {
+  name        = "allow_tcp_nfs"
+  description = "Allow TCP and NFS inbound traffic"
   vpc_id      = "vpc-4ae4f922"
 
   ingress {
@@ -48,6 +63,13 @@ resource "aws_security_group" "allow_tcp" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+    description = "NFS from VPC"
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   egress {
     from_port   = 0
@@ -57,7 +79,7 @@ resource "aws_security_group" "allow_tcp" {
   }
 
   tags = {
-    Name = "allow_tcp"
+    Name = "allow_tcp_nfs"
   }
 }
 
@@ -66,31 +88,97 @@ resource "aws_instance" "myWebOS" {
     ami = "ami-0447a12f28fddb066"
     instance_type = "t2.micro"
     key_name = var.key_name
-    vpc_security_group_ids = ["${aws_security_group.allow_tcp.id}"]
+    vpc_security_group_ids = ["${aws_security_group.allow_tcp_nfs.id}"]
     subnet_id = "subnet-2f0b3147"
     tags = {
         Name = "TeraTaskOne"
     }
-    user_data = "${file("vol.sh")}"
 }
 
 // Creating EBS volume
-resource "aws_ebs_volume" "myWebVol" {
-  availability_zone = "${aws_instance.myWebOS.availability_zone}"
-  size              = 1
+# resource "aws_ebs_volume" "myWebVol" {
+#   availability_zone = "${aws_instance.myWebOS.availability_zone}"
+#   size              = 1
+
+#   tags = {
+#     Name = "TeraTaskVol"
+#   }
+# }
+
+# // Attaching above volume to the EC2 instance
+# resource "aws_volume_attachment" "myWebVolAttach" {
+#   depends_on = [
+#         aws_ebs_volume.myWebVol,
+#   ]
+
+#   device_name = "/dev/sdc"
+#   volume_id = "${aws_ebs_volume.myWebVol.id}"
+#   instance_id = "${aws_instance.myWebOS.id}"
+#   skip_destroy = true
+# }
+
+# // Configuring the external volume
+# resource "null_resource" "setupVol" {
+#   depends_on = [
+#     aws_volume_attachment.myWebVolAttach,
+#   ]
+
+#   //
+#   provisioner "local-exec" {
+#     command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u ec2-user --private-key ~/Desktop/${var.key_name}.pem -i '${aws_instance.myWebOS.public_ip},' master.yml"
+#   }
+# }
+
+// Creating EFS
+resource "aws_efs_file_system" "myWebEFS" {
+  creation_token = "myWebFile"
 
   tags = {
-    Name = "TeraTaskVol"
+    Name = "myWebFileSystem"
   }
 }
 
-// Attaching above volume to the EC2 instance
-resource "aws_volume_attachment" "myWebVolAttach" {
-  device_name = "/dev/sdc"
-  volume_id = "${aws_ebs_volume.myWebVol.id}"
-  instance_id = "${aws_instance.myWebOS.id}"
-  skip_destroy = true
+// Mounting EFS
+resource "aws_efs_mount_target" "mountefs" {
+  file_system_id  = "${aws_efs_file_system.myWebEFS.id}"
+  subnet_id       = "subnet-2f0b3147"
+#   vpc_security_group_ids = ["${aws_security_group.allow_tcp_nfs.id}"]
+  security_groups = ["${aws_security_group.allow_tcp_nfs.id}",]
 }
+
+// Creating file with variables
+data "template_file" "terraVars" {
+  depends_on = [
+    aws_efs_file_system.myWebEFS,
+  ]
+
+  template = "${file("tf_master.yml.tpl")}"
+
+  // populate the template variables with these values
+  vars = {
+    file_sys_id = "${aws_efs_file_system.myWebEFS.id}"
+    region_id = "ap-south-1"
+  }
+}
+
+//
+resource "local_file" "tf_ansible_vars_file" {
+  content  = data.template_file.terraVars.rendered
+  filename = "./tf_master.yml"
+}
+
+// Configuring the external volume
+resource "null_resource" "setupVol" {
+  depends_on = [
+    aws_efs_mount_target.mountefs,
+  ]
+
+  //
+  provisioner "local-exec" {
+    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u ec2-user --private-key ~/Desktop/${var.key_name}.pem -i '${aws_instance.myWebOS.public_ip},' master.yml"
+  }
+}
+
 
 // Creating private S3 Bucket
 resource "aws_s3_bucket" "tera_bucket" {
