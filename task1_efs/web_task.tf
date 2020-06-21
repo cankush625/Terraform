@@ -85,7 +85,7 @@ resource "aws_security_group" "allow_tcp_nfs" {
 
 // Launching new EC2 instance
 resource "aws_instance" "myWebOS" {
-    ami = "ami-0447a12f28fddb066"
+    ami = "ami-005956c5f0f757d37"
     instance_type = "t2.micro"
     key_name = var.key_name
     vpc_security_group_ids = ["${aws_security_group.allow_tcp_nfs.id}"]
@@ -94,40 +94,6 @@ resource "aws_instance" "myWebOS" {
         Name = "TeraTaskOne"
     }
 }
-
-// Creating EBS volume
-# resource "aws_ebs_volume" "myWebVol" {
-#   availability_zone = "${aws_instance.myWebOS.availability_zone}"
-#   size              = 1
-
-#   tags = {
-#     Name = "TeraTaskVol"
-#   }
-# }
-
-# // Attaching above volume to the EC2 instance
-# resource "aws_volume_attachment" "myWebVolAttach" {
-#   depends_on = [
-#         aws_ebs_volume.myWebVol,
-#   ]
-
-#   device_name = "/dev/sdc"
-#   volume_id = "${aws_ebs_volume.myWebVol.id}"
-#   instance_id = "${aws_instance.myWebOS.id}"
-#   skip_destroy = true
-# }
-
-# // Configuring the external volume
-# resource "null_resource" "setupVol" {
-#   depends_on = [
-#     aws_volume_attachment.myWebVolAttach,
-#   ]
-
-#   //
-#   provisioner "local-exec" {
-#     command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u ec2-user --private-key ~/Desktop/${var.key_name}.pem -i '${aws_instance.myWebOS.public_ip},' master.yml"
-#   }
-# }
 
 // Creating EFS
 resource "aws_efs_file_system" "myWebEFS" {
@@ -142,29 +108,7 @@ resource "aws_efs_file_system" "myWebEFS" {
 resource "aws_efs_mount_target" "mountefs" {
   file_system_id  = "${aws_efs_file_system.myWebEFS.id}"
   subnet_id       = "subnet-2f0b3147"
-#   vpc_security_group_ids = ["${aws_security_group.allow_tcp_nfs.id}"]
   security_groups = ["${aws_security_group.allow_tcp_nfs.id}",]
-}
-
-// Creating file with variables
-data "template_file" "terraVars" {
-  depends_on = [
-    aws_efs_file_system.myWebEFS,
-  ]
-
-  template = "${file("tf_master.yml.tpl")}"
-
-  // populate the template variables with these values
-  vars = {
-    file_sys_id = "${aws_efs_file_system.myWebEFS.id}"
-    region_id = "ap-south-1"
-  }
-}
-
-//
-resource "local_file" "tf_ansible_vars_file" {
-  content  = data.template_file.terraVars.rendered
-  filename = "./tf_master.yml"
 }
 
 // Configuring the external volume
@@ -175,7 +119,7 @@ resource "null_resource" "setupVol" {
 
   //
   provisioner "local-exec" {
-    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u ec2-user --private-key ~/Desktop/${var.key_name}.pem -i '${aws_instance.myWebOS.public_ip},' master.yml"
+    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u ec2-user --private-key ~/Desktop/${var.key_name}.pem -i '${aws_instance.myWebOS.public_ip},' master.yml -e 'file_sys_id=${aws_efs_file_system.myWebEFS.id}'"
   }
 }
 
