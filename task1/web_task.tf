@@ -127,7 +127,6 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
     origin_id   = "${local.s3_origin_id}"
 
     s3_origin_config {
-      # origin_access_identity = "origin-access-identity/cloudfront/ABCDEFG1234567"
       origin_access_identity = "${aws_cloudfront_origin_access_identity.origin_access_identity.cloudfront_access_identity_path}"
     }
   }
