@@ -13,7 +13,7 @@ resource "tls_private_key" "ec2_private_key" {
   rsa_bits  = 4096
 
   provisioner "local-exec" {
-        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/${var.key_name}.pem"            
+        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/task2/${var.key_name}.pem"            
     }
 }
 
@@ -24,7 +24,7 @@ resource "null_resource" "key-perm" {
     ]
 
     provisioner "local-exec" {
-        command = "chmod 400 ~/Desktop/${var.key_name}.pem"
+        command = "chmod 400 ~/Desktop/task2/${var.key_name}.pem"
     }
 }
 
@@ -191,7 +191,7 @@ resource "aws_instance" "wordpress" {
     aws_security_group.allowHttp,
     aws_instance.mysql,
   ]
-  ami = "ami-d36916bc"
+  ami = "ami-ff82f990"
   instance_type = "t2.micro"
   key_name = var.key_name
   vpc_security_group_ids = ["${aws_security_group.allowHttp.id}"]
