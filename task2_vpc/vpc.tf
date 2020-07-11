@@ -13,7 +13,7 @@ resource "tls_private_key" "ec2_private_key" {
   rsa_bits  = 4096
 
   provisioner "local-exec" {
-        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/${var.key_name}.pem"            
+        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/task2/${var.key_name}.pem"            
     }
 }
 
@@ -24,7 +24,7 @@ resource "null_resource" "key-perm" {
     ]
 
     provisioner "local-exec" {
-        command = "chmod 400 ~/Desktop/${var.key_name}.pem"
+        command = "chmod 400 ~/Desktop/task2/${var.key_name}.pem"
     }
 }
 
@@ -43,7 +43,7 @@ resource "aws_vpc" "myVpc" {
     Name = "my-vpc"
   }
 
-  enable_dns_hostnames = true;
+  enable_dns_hostnames = true
 }
 
 resource "aws_subnet" "mySubnet1" {
@@ -54,13 +54,13 @@ resource "aws_subnet" "mySubnet1" {
   vpc_id     = "${aws_vpc.myVpc.id}"
   cidr_block = "192.168.0.0/24"
 
-  availability_zone = "ap-south-1a"
+  availability_zone_id = "aps1-az1"
 
   tags = {
     Name = "my-subnet1"
   }
 
-  map_public_ip_on_launch = true;
+  map_public_ip_on_launch = true
 }
 
 resource "aws_subnet" "mySubnet2" {
@@ -71,7 +71,7 @@ resource "aws_subnet" "mySubnet2" {
   vpc_id     = "${aws_vpc.myVpc.id}"
   cidr_block = "192.168.1.0/24"
 
-  availability_zone_id = "ap-south-1a"
+  availability_zone_id = "aps1-az1"
 
   tags = {
     Name = "my-subnet2"
