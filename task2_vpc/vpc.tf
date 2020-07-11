@@ -13,7 +13,7 @@ resource "tls_private_key" "ec2_private_key" {
   rsa_bits  = 4096
 
   provisioner "local-exec" {
-        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/task2/${var.key_name}.pem"            
+        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/${var.key_name}.pem"            
     }
 }
 
@@ -24,7 +24,7 @@ resource "null_resource" "key-perm" {
     ]
 
     provisioner "local-exec" {
-        command = "chmod 400 ~/Desktop/task2/${var.key_name}.pem"
+        command = "chmod 400 ~/Desktop/${var.key_name}.pem"
     }
 }
 
@@ -43,7 +43,7 @@ resource "aws_vpc" "myVpc" {
     Name = "my-vpc"
   }
 
-  enable_dns_hostnames = true
+  enable_dns_hostnames = true;
 }
 
 resource "aws_subnet" "mySubnet1" {
@@ -54,13 +54,13 @@ resource "aws_subnet" "mySubnet1" {
   vpc_id     = "${aws_vpc.myVpc.id}"
   cidr_block = "192.168.0.0/24"
 
-  availability_zone_id = "aps1-az1"
+  availability_zone = "ap-south-1a"
 
   tags = {
     Name = "my-subnet1"
   }
 
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = true;
 }
 
 resource "aws_subnet" "mySubnet2" {
@@ -71,7 +71,7 @@ resource "aws_subnet" "mySubnet2" {
   vpc_id     = "${aws_vpc.myVpc.id}"
   cidr_block = "192.168.1.0/24"
 
-  availability_zone_id = "aps1-az1"
+  availability_zone_id = "ap-south-1a"
 
   tags = {
     Name = "my-subnet2"
@@ -115,4 +115,88 @@ resource "aws_route_table_association" "associateRouteTableWithSubnet" {
   ]
   subnet_id      = aws_subnet.mySubnet1.id
   route_table_id = aws_route_table.myRouteTable.id
+}
+
+resource "aws_security_group" "allowHttp" {
+  depends_on = [
+    aws_vpc.myVpc,
+  ]
+
+  name        = "allow_http"
+  description = "Allow http inbound traffic"
+  vpc_id      = "${aws_vpc.myVpc.id}"
+
+  ingress {
+    description = "TCP from VPC"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "SSH from VPC"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+resource "aws_security_group" "allowMysql" {
+  depends_on = [
+    aws_vpc.myVpc,
+  ]
+  name        = "allow_mysql"
+  description = "Allow mysql inbound traffic"
+  vpc_id      = "${aws_vpc.myVpc.id}"
+
+  ingress {
+    description = "TCP from VPC"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "mysql" {
+  depends_on = [
+    aws_security_group.allowMysql,
+  ]
+  ami = "ami-07e41a95e7b3bd1a9"
+  instance_type = "t2.micro"
+  key_name = var.key_name
+  vpc_security_group_ids = ["${aws_security_group.allowMysql.id}"]
+  subnet_id = "${aws_subnet.mySubnet2.id}"
+  tags = {
+      Name = "mysql"
+  }
+}
+
+resource "aws_instance" "wordpress" {
+  depends_on = [
+    aws_security_group.allowHttp,
+    aws_instance.mysql,
+  ]
+  ami = "ami-d36916bc"
+  instance_type = "t2.micro"
+  key_name = var.key_name
+  vpc_security_group_ids = ["${aws_security_group.allowHttp.id}"]
+  subnet_id = "${aws_subnet.mySubnet1.id}"
+  tags = {
+      Name = "wordpress"
+  }
 }
