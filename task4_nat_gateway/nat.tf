@@ -5,7 +5,7 @@ provider "aws" {
 
 // Creating the EC2 private key
 variable "key_name" {
-  default = "Terraform_vpc"
+  default = "Terraform_nat"
 }
 
 resource "tls_private_key" "ec2_private_key" {
@@ -13,7 +13,7 @@ resource "tls_private_key" "ec2_private_key" {
   rsa_bits  = 4096
 
   provisioner "local-exec" {
-        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/task2/${var.key_name}.pem"            
+        command = "echo '${tls_private_key.ec2_private_key.private_key_pem}' > ~/Desktop/task3/${var.key_name}.pem"            
     }
 }
 
@@ -24,7 +24,7 @@ resource "null_resource" "key-perm" {
     ]
 
     provisioner "local-exec" {
-        command = "chmod 400 ~/Desktop/task2/${var.key_name}.pem"
+        command = "chmod 400 ~/Desktop/task3/${var.key_name}.pem"
     }
 }
 
@@ -118,6 +118,10 @@ resource "aws_route_table_association" "associateRouteTableWithSubnet" {
 }
 
 resource "aws_eip" "myEip" {
+  depends_on = [
+    aws_instance.wordpress,
+    aws_instance.mysql,
+  ]
   vpc      = true
 }
 
@@ -202,19 +206,35 @@ resource "aws_security_group" "allowMysql" {
   vpc_id      = "${aws_vpc.myVpc.id}"
 
   ingress {
-    description = "SSH from allowHttp"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [aws_security_group.allowHttp.id]
-  }
-
-  ingress {
     description = "TCP from VPC"
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = [aws_security_group.allowHttp.id]
+    security_groups = [aws_security_group.allowHttp.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "allowBashing" {
+  depends_on = [
+    aws_vpc.myVpc,
+  ]
+  name        = "allow_bashing"
+  description = "Security Group for Bashing Host"
+  vpc_id      = "${aws_vpc.myVpc.id}"
+
+  ingress {
+    description = "SSH from bashing"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    security_groups = [aws_security_group.allowHttp.id]
   }
 
   egress {
@@ -229,10 +249,10 @@ resource "aws_instance" "mysql" {
   depends_on = [
     aws_security_group.allowMysql,
   ]
-  ami = "ami-0af4f2ae8f9fac390"
+  ami = "ami-0447a12f28fddb066"
   instance_type = "t2.micro"
   key_name = var.key_name
-  vpc_security_group_ids = ["${aws_security_group.allowMysql.id}"]
+  vpc_security_group_ids = [aws_security_group.allowMysql.id, aws_security_group.allowBashing.id]
   subnet_id = "${aws_subnet.mySubnet2.id}"
   tags = {
       Name = "mysql"
@@ -244,7 +264,7 @@ resource "aws_instance" "wordpress" {
     aws_security_group.allowHttp,
     aws_instance.mysql,
   ]
-  ami = "ami-ff82f990"
+  ami = "ami-7e257211"
   instance_type = "t2.micro"
   key_name = var.key_name
   vpc_security_group_ids = ["${aws_security_group.allowHttp.id}"]
