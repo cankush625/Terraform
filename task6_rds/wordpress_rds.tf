@@ -47,8 +47,8 @@ resource "aws_db_instance" "wordpress" {
   backup_retention_period  = 0
 }
 
-output “ip” {
-    value = “${aws_db_instance.wordpress.address}”
+output "ip" {
+    value = "${aws_db_instance.wordpress.address}"
 }
 
 resource "null_resource" "deploy-wordpress" {
